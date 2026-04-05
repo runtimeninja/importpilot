@@ -10,7 +10,10 @@ import (
 
 	"github.com/runtimeninja/importpilot/internal/config"
 	"github.com/runtimeninja/importpilot/internal/db"
+	"github.com/runtimeninja/importpilot/internal/http/handlers"
 	"github.com/runtimeninja/importpilot/internal/observability"
+	"github.com/runtimeninja/importpilot/internal/repository"
+	"github.com/runtimeninja/importpilot/internal/service"
 )
 
 func main() {
@@ -31,8 +34,14 @@ func main() {
 	}
 	defer postgresDB.Close()
 
+	clientRepo := repository.NewClientRepository(postgresDB)
+	clientService := service.NewClientService(clientRepo)
+	clientHandler := handlers.NewClientHandler(clientService)
+
 	mux := http.NewServeMux()
+
 	registerHealthRoutes(mux, postgresDB)
+	registerClientRoutes(mux, clientHandler)
 
 	err = http.ListenAndServe(":"+cfg.AppPort, mux)
 	if err != nil {
@@ -55,6 +64,11 @@ func registerHealthRoutes(mux *http.ServeMux, postgresDB *sql.DB) {
 		slog.Debug("health check called")
 
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		_, _ = w.Write([]byte("OK"))
 	})
+}
+
+func registerClientRoutes(mux *http.ServeMux, clientHandler *handlers.ClientHandler) {
+	mux.HandleFunc("/admin/clients", clientHandler.HandleClients)
+	mux.HandleFunc("/admin/clients/", clientHandler.HandleClientByID)
 }

@@ -105,3 +105,27 @@ func (r *ClientRepository) List(ctx context.Context, limit, offset int) ([]domai
 
 	return clients, nil
 }
+
+func (r *ClientRepository) UpdateStatus(ctx context.Context, id int64, status string) error {
+	query := `
+		UPDATE clients
+		SET status = $1, updated_at = NOW()
+		WHERE id = $2
+	`
+
+	result, err := r.db.ExecContext(ctx, query, status, id)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return sql.ErrNoRows
+	}
+
+	return nil
+}
