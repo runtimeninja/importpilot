@@ -76,11 +76,11 @@ func (s *ClientService) UpdateClientStatus(ctx context.Context, id int64, status
 	status = strings.TrimSpace(strings.ToLower(status))
 
 	if id <= 0 {
-		return errors.New("invalid client id")
+		return domain.ErrInvalidClientID
 	}
 
 	if status != "active" && status != "inactive" {
-		return errors.New("status must be either active or inactive")
+		return domain.ErrInvalidClientStatus
 	}
 
 	return s.clientRepo.UpdateStatus(ctx, id, status)

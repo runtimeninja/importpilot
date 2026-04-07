@@ -11,6 +11,7 @@ import (
 	"github.com/runtimeninja/importpilot/internal/config"
 	"github.com/runtimeninja/importpilot/internal/db"
 	"github.com/runtimeninja/importpilot/internal/http/handlers"
+	"github.com/runtimeninja/importpilot/internal/http/middleware"
 	"github.com/runtimeninja/importpilot/internal/observability"
 	"github.com/runtimeninja/importpilot/internal/repository"
 	"github.com/runtimeninja/importpilot/internal/service"
@@ -38,10 +39,20 @@ func main() {
 	clientService := service.NewClientService(clientRepo)
 	clientHandler := handlers.NewClientHandler(clientService)
 
+	userRepo := repository.NewUserRepository(postgresDB)
+	jwtService := service.NewJWTService(cfg.JWTSecret)
+	authService := service.NewAuthService(userRepo, jwtService)
+	authHandler := handlers.NewAuthHandler(authService)
+
+	authMiddleware := middleware.NewAuthMiddleware(jwtService)
+
 	mux := http.NewServeMux()
 
 	registerHealthRoutes(mux, postgresDB)
-	registerClientRoutes(mux, clientHandler)
+
+	registerClientRoutes(mux, clientHandler, authMiddleware)
+
+	mux.HandleFunc("/auth/login", authHandler.Login)
 
 	err = http.ListenAndServe(":"+cfg.AppPort, mux)
 	if err != nil {
@@ -68,7 +79,18 @@ func registerHealthRoutes(mux *http.ServeMux, postgresDB *sql.DB) {
 	})
 }
 
-func registerClientRoutes(mux *http.ServeMux, clientHandler *handlers.ClientHandler) {
-	mux.HandleFunc("/admin/clients", clientHandler.HandleClients)
-	mux.HandleFunc("/admin/clients/", clientHandler.HandleClientByID)
+func registerClientRoutes(
+	mux *http.ServeMux,
+	clientHandler *handlers.ClientHandler,
+	authMiddleware *middleware.AuthMiddleware,
+) {
+	mux.HandleFunc(
+		"/admin/clients",
+		authMiddleware.RequireAuth(clientHandler.HandleClients),
+	)
+
+	mux.HandleFunc(
+		"/admin/clients/",
+		authMiddleware.RequireAuth(clientHandler.HandleClientByID),
+	)
 }

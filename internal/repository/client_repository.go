@@ -3,6 +3,8 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"strings"
 
 	"github.com/runtimeninja/importpilot/internal/domain"
 )
@@ -34,6 +36,9 @@ func (r *ClientRepository) Create(ctx context.Context, client domain.Client) (in
 	).Scan(&id)
 
 	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "clients_email_key") {
+			return 0, domain.ErrClientEmailExists
+		}
 		return 0, err
 	}
 
@@ -59,6 +64,9 @@ func (r *ClientRepository) GetByID(ctx context.Context, id int64) (*domain.Clien
 		&client.UpdatedAt,
 	)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, domain.ErrClientNotFound
+		}
 		return nil, err
 	}
 
@@ -83,6 +91,7 @@ func (r *ClientRepository) List(ctx context.Context, limit, offset int) ([]domai
 
 	for rows.Next() {
 		var client domain.Client
+
 		if err := rows.Scan(
 			&client.ID,
 			&client.Name,
@@ -124,7 +133,7 @@ func (r *ClientRepository) UpdateStatus(ctx context.Context, id int64, status st
 	}
 
 	if rowsAffected == 0 {
-		return sql.ErrNoRows
+		return domain.ErrClientNotFound
 	}
 
 	return nil
